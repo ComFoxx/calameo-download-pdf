@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<title>Calameo Download PDF</title>
+	<meta charset="UTF-8">
+	<style>
+		body {
+			margin: 0;
+			padding: 0;
+		}
+		@media screen {
+			body {
+				height: 100vh;
+				font-family: sans-serif;
+				text-align: center;
+			}
+			.screen {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				min-height: 60%;
+			}
+			.print img {
+				display: none;
+			}
+			hr, progress {
+				min-width: 80%;
+			}
+		}
+		@media print {
+			.print img {
+				width: 100%;
+				max-height: 100vh;
+				page-break-after: always;
+				page-break-inside: avoid;
+				display: block;
+			}
+			.screen {
+				display: none;
+			}
+		}
+	</style>
+	<style id="pageStyle"></style>
+</head>
+<body>
+	<div class="screen">
+		<h1>Télécharger un document Calameo en PDF</h1>
+		<p>Afin de télécharger un document Calameo au format PDF, cette page web chargera les images svgz de chacune des pages puis vous proposera de les imprimer, vous pourrez ainsi demander à votre navigateur d'enregistrer le document au format pdf.</p>
+		<form>
+			<input type="url" placeholder="URL Calameo" size="50">
+			<button type="submit">Imprimer</button>
+		</form>
+		<hr style="display: none;">
+		<label for="loading" style="display: none;">Chargement</label>
+		<progress id="loading" max="0" value="0" style="display: none;"></progress>
+	</div>
+	<div class="print" id="images"></div>
+	<script>
+		const input = document.querySelector('input')
+		const form = document.querySelector('form')
+		const hr = document.querySelector('hr')
+		const label = document.querySelector('label')
+		const progress = document.querySelector('progress')
+		const images = document.querySelector('#images')
+		const pageStyle = document.querySelector('#pageStyle')
+		const title = document.querySelector('title')
+		let book = undefined;
+		const _jsonBook = function (data) {
+			book = data;
+		}
+		const error = function () {
+			label.textContent = 'Erreur lors du chargement du document.'
+			label.style.color = 'red'
+			progress.style.display = 'none'
+			progress.value = 0;
+			progress.max = 0;
+			book = undefined
+		}
+
+		form.addEventListener('submit', e => {
+			e.preventDefault()
+			
+			hr.style.display = 'block'
+			label.style.display = 'block'
+			progress.style.display = 'block'
+			label.style.color = 'inherit'
+			label.textContent = 'Suppression du document précédent…'
+
+			while (images.firstChild) {
+				images.firstChild.remove()
+			}
+
+			label.textContent = 'Chargement des paramètres du document calemeo…'
+			
+			let ready = false;
+			const bookJsonUrl = 'https://d.calameo.com/3.0.0/book.php?callback=_jsonBook&bkcode=' + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&')
+			const script = document.createElement('script');
+			script.src = bookJsonUrl;
+			const timeout = setTimeout(() => {
+				console.error('JSON Book load timeout.')
+				error()
+			}, 5000)
+
+			script.addEventListener('load', () => {
+				clearTimeout(timeout)
+				script.remove()
+				console.log(book)
+
+				if (book === undefined) {
+					error()
+					console.error('JSON Book not filled.')
+					return null;
+				}
+				if (book['status'] !== 'ok') {
+					error()
+					console.error('Error in Calameo response.', book)
+					return null;
+				}
+
+				label.textContent = 'Définition des paramètres du document…'
+				
+				const width = book['content']['document']['width'] + 'px'
+				const height = book['content']['document']['height'] + 'px'
+				pageStyle.innerHTML = `
+					@page {
+						size: ${width} ${height};
+						margin: 0;
+					}`
+				
+				const max = book['content']['document']['pages']
+				let loadedImages = 0
+				progress.max = max
+
+				title.textContent = book['content']['name']
+
+				label.textContent = `Chargement des pages ${loadedImages}/${max}…`
+				
+				const load = function () {
+					loadedImages++
+					progress.value = loadedImages
+					label.textContent = `Chargement des pages ${loadedImages}/${max}…`
+					if (loadedImages >= max) {
+						label.textContent = 'Chargement terminé, impression…'
+						window.print()
+						hr.style.display = 'none'
+						label.style.display = 'none'
+						progress.style.display = 'none'
+						progress.value = 0;
+						progress.max = 0;
+						title.textContent = 'Calameo Download PDF'
+						book = undefined
+					}
+				}
+	
+				const imageUrl = book['content']['domains']['svg'] + book['content']['key'] + '/'
+				for (let page = 1; page <= max; page++) {
+					const src = `${imageUrl}/p${page}.svgz`
+					const image = document.createElement('img')
+					image.addEventListener('load', e => load())
+					image.src = src
+					images.appendChild(image)
+				}
+			})
+			document.body.append(script);
+		})
+	</script>
+</body>
+</html>
