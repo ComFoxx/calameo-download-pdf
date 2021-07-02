@@ -52,7 +52,10 @@
 <body>
 	<div class="screen">
 		<h1>Télécharger un document Calameo en PDF</h1>
-		<p>Afin de télécharger un document Calameo au format PDF, cette page web chargera les images svgz de chacune des pages puis vous proposera de les imprimer, vous pourrez ainsi demander à votre navigateur d'enregistrer le document au format pdf.</p>
+		<p>
+			Afin de télécharger un document Calameo au format PDF, cette page web chargera les images svgz de chacune des pages puis vous proposera de les imprimer, vous pourrez ainsi demander à votre navigateur d'enregistrer le document au format pdf.
+			<br>Il est recommandé d'utiliser un navigateur basé sur Chromium. Firefox trame le texte, le rendant non-sélectionnable.
+		</p>
 		<form>
 			<input type="url" placeholder="URL Calameo" size="50">
 			<button type="submit">Imprimer</button>
@@ -103,6 +106,7 @@
 			const bookJsonUrl = 'https://d.calameo.com/3.0.0/book.php?callback=_jsonBook&bkcode=' + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&')
 			const script = document.createElement('script');
 			script.src = bookJsonUrl;
+			script.referrerPolicy = 'no-referrer'
 			const timeout = setTimeout(() => {
 				console.error('JSON Book load timeout.')
 				error()
