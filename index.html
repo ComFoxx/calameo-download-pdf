@@ -65,115 +65,102 @@
 		<progress id="loading" max="0" value="0" style="display: none;"></progress>
 	</div>
 	<div class="print" id="images"></div>
-	<script>
-		const input = document.querySelector('input')
-		const form = document.querySelector('form')
-		const hr = document.querySelector('hr')
-		const label = document.querySelector('label')
-		const progress = document.querySelector('progress')
-		const images = document.querySelector('#images')
-		const pageStyle = document.querySelector('#pageStyle')
-		const title = document.querySelector('title')
-		let book = undefined;
-		const _jsonBook = function (data) {
-			book = data;
-		}
-		const error = function () {
-			label.textContent = 'Erreur lors du chargement du document.'
-			label.style.color = 'red'
-			progress.style.display = 'none'
+	<script type="module">
+		const input = document.querySelector('input');
+		const form = document.querySelector('form');
+		const hr = document.querySelector('hr');
+		const label = document.querySelector('label');
+		const progress = document.querySelector('progress');
+		const images = document.querySelector('#images');
+		const pageStyle = document.querySelector('#pageStyle');
+		const title = document.querySelector('title');
+
+		const error = () => {
+			label.textContent = 'Erreur lors du chargement du document.';
+			label.style.color = 'red';
+			progress.style.display = 'none';
 			progress.value = 0;
 			progress.max = 0;
-			book = undefined
-		}
+		};
 
-		form.addEventListener('submit', e => {
-			e.preventDefault()
+		form.addEventListener('submit', async e => {
+			e.preventDefault();
 			
-			hr.style.display = 'block'
-			label.style.display = 'block'
-			progress.style.display = 'block'
-			label.style.color = 'inherit'
-			label.textContent = 'Suppression du document précédent…'
+			hr.style.display = 'block';
+			label.style.display = 'block';
+			progress.style.display = 'block';
+			label.style.color = 'inherit';
+			label.textContent = 'Suppression du document précédent…';
 
 			while (images.firstChild) {
-				images.firstChild.remove()
+				images.firstChild.remove();
 			}
 
-			label.textContent = 'Chargement des paramètres du document calemeo…'
+			label.textContent = 'Chargement des paramètres du document calemeo…';
 			
 			let ready = false;
-			const bookJsonUrl = 'https://d.calameo.com/3.0.0/book.php?callback=_jsonBook&bkcode=' + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&')
-			const script = document.createElement('script');
-			script.src = bookJsonUrl;
-			script.referrerPolicy = 'no-referrer'
-			const timeout = setTimeout(() => {
-				console.error('JSON Book load timeout.')
-				error()
-			}, 5000)
 
-			script.addEventListener('load', () => {
-				clearTimeout(timeout)
-				script.remove()
-				console.log(book)
+			const url = 'https://corsproxy.io/?' + encodeURIComponent("https://d.calameo.com/pinwheel/viewer/book/get?bkcode=" + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&'));
+			const response = await fetch(url);
+			const book = await response.json();
+			const expires = response.headers.get("X-Calameo-Hash-Expires");
+			const path = response.headers.get("X-Calameo-Hash-Path");
+			const signature = response.headers.get("X-Calameo-Hash-Signature");
 
-				if (book === undefined) {
-					error()
-					console.error('JSON Book not filled.')
-					return null;
+			if (book === undefined) {
+				error();
+				console.error('JSON Book not filled.');
+				return null;
+			}
+			if (book.status !== 'ok') {
+				error();
+				console.error('Error in Calameo response.', book);
+				return null;
+			}
+
+			label.textContent = 'Définition des paramètres du document…';
+			
+			const width = book.content.document.width + 'px';
+			const height = book.content.document.height + 'px';
+			pageStyle.innerHTML = `
+				@page {
+					size: ${width} ${height};
+					margin: 0;
+				}`;
+			
+			const max = book.content.document.pages;
+			let loadedImages = 0;
+			progress.max = max;
+
+			title.textContent = book.content.name;
+			label.textContent = `Chargement des pages ${loadedImages}/${max}…`;
+
+			const load = () => {
+				loadedImages++;
+				progress.value = loadedImages;
+				label.textContent = `Chargement des pages ${loadedImages}/${max}…`;
+				if (loadedImages >= max) {
+					label.textContent = 'Chargement terminé, impression…';
+					window.print();
+					hr.style.display = 'none';
+					label.style.display = 'none';
+					progress.style.display = 'none';
+					progress.value = 0;
+					progress.max = 0;
+					title.textContent = 'Calameo Download PDF';
 				}
-				if (book['status'] !== 'ok') {
-					error()
-					console.error('Error in Calameo response.', book)
-					return null;
-				}
+			};
 
-				label.textContent = 'Définition des paramètres du document…'
-				
-				const width = book['content']['document']['width'] + 'px'
-				const height = book['content']['document']['height'] + 'px'
-				pageStyle.innerHTML = `
-					@page {
-						size: ${width} ${height};
-						margin: 0;
-					}`
-				
-				const max = book['content']['document']['pages']
-				let loadedImages = 0
-				progress.max = max
-
-				title.textContent = book['content']['name']
-
-				label.textContent = `Chargement des pages ${loadedImages}/${max}…`
-				
-				const load = function () {
-					loadedImages++
-					progress.value = loadedImages
-					label.textContent = `Chargement des pages ${loadedImages}/${max}…`
-					if (loadedImages >= max) {
-						label.textContent = 'Chargement terminé, impression…'
-						window.print()
-						hr.style.display = 'none'
-						label.style.display = 'none'
-						progress.style.display = 'none'
-						progress.value = 0;
-						progress.max = 0;
-						title.textContent = 'Calameo Download PDF'
-						book = undefined
-					}
-				}
-	
-				const imageUrl = book['content']['domains']['svg'] + book['content']['key'] + '/'
-				for (let page = 1; page <= max; page++) {
-					const src = `${imageUrl}/p${page}.svgz`
-					const image = document.createElement('img')
-					image.addEventListener('load', e => load())
-					image.src = src
-					images.appendChild(image)
-				}
-			})
-			document.body.append(script);
-		})
+			const sign = ["?_token_=exp=" + expires, "acl=" + path, "hmac=" + signature].join("~");
+			const imageUrl = book.content.domains.secured.svg + book.content.key + '/';
+			for (let page = 1; page <= max; page++) {
+				const src = `${imageUrl}/p${page}.svgz${sign}`;
+				const image = document.createElement('img');
+				image.addEventListener('load', e => load());
+				image.src = src;
+				images.appendChild(image);
+			}
+		});
 	</script>
 </body>
 </html>
