@@ -100,7 +100,8 @@
 			
 			let ready = false;
 
-			const url = "https://thingproxy.freeboard.io/fetch/https://d.calameo.com/pinwheel/viewer/book/get?bkcode=" + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&');
+			const host = window.location.hostname == 'comfoxx.github.io' ? 'https://comfoxx.fr/calameo-download-pdf/' : '';
+			const url = host + 'getbook.php?bkcode=' + input.value.substring(input.value.lastIndexOf('/') + 1, input.value.length).replace(/\?/g, '&');
 			const response = await fetch(url);
 			const book = await response.json();
 			const expires = response.headers.get("X-Calameo-Hash-Expires");
